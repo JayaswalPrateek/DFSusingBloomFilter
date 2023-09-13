@@ -36,7 +36,7 @@ int hashFunctions(const int functionNumber, const int toBeHashed) {
 		case 4:
 			return hashFunction4(toBeHashed);
 	}
-	throw runtime_error("Unexpected Error: invalid function number: " + to_string(functionNumber));
+	return -1;
 }
 
 bloomFilter BloomFilterBuilder(int tableRow) {
@@ -78,7 +78,7 @@ void GraphBuilder() {
 			set<int> factorsOfLargerElement(adjacencyList[largerNumber].cbegin(), adjacencyList[largerNumber].cend());
 
 			for (int k = listToBeCompressed.size() - 1; k >= 0; k--)
-				if (factorsOfLargerElement.contains(listToBeCompressed[k]))
+				if (factorsOfLargerElement.count(listToBeCompressed[k]))
 					listToBeCompressed.erase(listToBeCompressed.cbegin() + k);	// Removed the common factors
 		}
 	}
@@ -89,6 +89,7 @@ void GraphBuilder() {
 		for (const int &factor: adjacencyList[i]) cout << factor << " ";
 		cout << endl;
 	}
+	cout << "\n\nGraph built successfully!" << endl;
 }
 
 string generateKey(const int isThisNumber, const int aFactorOfThisNumber) { return to_string(isThisNumber) + ',' + to_string(aFactorOfThisNumber); }
@@ -128,7 +129,7 @@ bool queryCache(const int isThisNumber, const int aFactorOfThisNumber) {
 		if (key == successfulQueries) return true;
 	for (const string &failedQueries: get<3>(table[tableRow]))
 		if (key == failedQueries) return false;
-	throw runtime_error("Unexpected Error: queryCache() should only be called if inCache() returns true");
+	exit(-1);
 }
 
 bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
@@ -176,10 +177,41 @@ void benchmarkBFS() {}
 void benchmarkBloomFilter();
 
 int main() {
+	cout << "Please wait while the graph of " << TOTAL_NODES << " nodes is being generated, this could take a while..." << endl;
 	GraphBuilder();
-	cout << "Enter 2 numbers: ";
-	int isThisNumber, aFactorOfThisNumber;
-	cin >> isThisNumber >> aFactorOfThisNumber;
-	cout << isThisNumber << " is " << (searchUsingDFS(isThisNumber, aFactorOfThisNumber) ? "" : "not a ") << "factor of " << aFactorOfThisNumber << endl;
-	return 0;
+
+	cout << "[1] Query using DFS" << endl;
+	cout << "[2] Query using DFS+Caching+BloomFilter" << endl;
+	cout << "[3] Profile [1]" << endl;
+	cout << "[4] Profile [2]" << endl;
+	cout << "[0] Exit" << endl;
+
+	int choice;
+	while (true) {
+		cout << "\n-> ";
+		cin >> choice;
+		if (choice == 0) return 0;
+
+		cout << "Check if a number X is a factor of Y" << endl;
+		int x, y;
+		cout << "Enter X: ";
+		cin >> x;
+		cout << "Enter Y: ";
+		cin >> y;
+
+		switch (choice) {
+			case 1:
+				cout << x << " is " << (searchUsingDFS(x, y) ? "not a " : "") << "factor of " << y << endl;
+				break;
+			case 2:
+				cout << x << " is " << (searchUsingBloomFilter(x, y) ? "not a " : "") << "factor of " << y << endl;
+				break;
+			case 3:
+				break;
+			case 4:
+				break;
+		}
+	}
+
+	return -1;
 }
