@@ -1,81 +1,53 @@
 // https://hur.st/bloomfilter/?n=100&p=&m=400&k=4
-#include <array>
-#include <bitset>
 #include <forward_list>
 #include <iostream>
 #include <set>
 #include <stack>
 #include <vector>
+
+#include "bloom/bloom_filter.hpp"
 using namespace std;
 
-const int TOTAL_NODES = 100000;
-const int BITSET_SIZE = 400;
-const int TABLE_ROW_RANGE = 100;
-const int CACHE_SIZE_LIMIT = TABLE_ROW_RANGE / 10;
+const int TOTAL_NODES = 10000;
+const int CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES = 1;  // cache wont have nodes more than 1% if TOTAL_NODES
+const int CACHE_SIZE_LIMIT = (CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;
 
-typedef forward_list<string> cacheLL;
-typedef array<bitset<BITSET_SIZE>, 4> bloomFilter;
+vector<pair<vector<int>, bloom_filter>> adjacencyList;
+forward_list<string> falsePositiveCache;
 
-vector<vector<int>> adjacencyList;
-vector<tuple<int, int, cacheLL, cacheLL, bloomFilter>> table(TOTAL_NODES / TABLE_ROW_RANGE);
-// vector<tuple<FROM, TO, SUCCESSES, FAILURES, BLOOM_FILTER>> table(TOTAL_NODES / TABLE_ROW_RANGE);
-// Indexing:   <0>	 <1> <2>		<3>		  <4>
-
-int hashFunctions(const int functionNumber, const int toBeHashed) {
-	const auto hashFunction1 = [](const int input) -> int { return (17 * input + 11) % BITSET_SIZE; };
-	const auto hashFunction2 = [](const int input) -> int { return (23 * input + 7) % BITSET_SIZE; };
-	const auto hashFunction3 = [](const int input) -> int { return (31 * input + 13) % BITSET_SIZE; };
-	const auto hashFunction4 = [](const int input) -> int { return (41 * input + 19) % BITSET_SIZE; };
-	switch (functionNumber) {
-		case 1:
-			return hashFunction1(toBeHashed);
-		case 2:
-			return hashFunction2(toBeHashed);
-		case 3:
-			return hashFunction3(toBeHashed);
-		case 4:
-			return hashFunction4(toBeHashed);
-	}
-	return -1;
-}
-
-bloomFilter BloomFilterBuilder(int tableRow) {
-	bloomFilter bf;
-
-	for (int i = TABLE_ROW_RANGE * tableRow; i < TABLE_ROW_RANGE * (tableRow + 1); i++)
-		for (const int &neighbour: adjacencyList[i]) {
-			bf[0].set(hashFunctions(1, neighbour));
-			bf[1].set(hashFunctions(2, neighbour));
-			bf[2].set(hashFunctions(3, neighbour));
-			bf[3].set(hashFunctions(4, neighbour));
-		}
-
+bloom_filter createBloomFilter(const int number) {
+	bloom_parameters parameters;
+	parameters.projected_element_count = number;
+	parameters.false_positive_probability = (float)CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES / 100;	 // 1 in 100
+	parameters.compute_optimal_parameters();
+	bloom_filter bf(parameters);
 	return bf;
-}
-void TableBuilder() {
-	for (int i = 0; i < TOTAL_NODES / TABLE_ROW_RANGE; i++) {
-		int from = TABLE_ROW_RANGE * i;
-		int to = min(TABLE_ROW_RANGE * (i + 1), TOTAL_NODES);
-		table.push_back(make_tuple(from, to, cacheLL(), cacheLL(), BloomFilterBuilder(i)));
-		// cout << "FROM: " << from << " TO: " << to << endl;
-	}
 }
 void GraphBuilder() {
 	adjacencyList.resize(TOTAL_NODES + 1);
 
-	// Building the uncompressed graph
-	for (int i = 2; i <= TOTAL_NODES; i++)
+	// Building the Adj. List for uncompressed graph
+	for (int i = 2; i <= TOTAL_NODES; i++) {
+		adjacencyList[i].second = bloom_filter();
 		for (int j = 2; j < i; j++)
-			if (i % j == 0) adjacencyList[i].push_back(j);
+			if (i % j == 0) {
+				adjacencyList[i].first.push_back(j);
+			}
+	}
 
-	TableBuilder();	 // requires uncompressed graph
+	// filling bloom filters using uncompressed graph
+	for (int i = 2; i <= TOTAL_NODES; i++) {
+		const vector<int> &factors = adjacencyList[i].first;
+		adjacencyList[i].second = createBloomFilter(factors.size());
+		for (const int &factor: factors) adjacencyList[i].second.insert(factor);
+	}
 
 	// Compressing the graph inplace
 	for (int i = TOTAL_NODES; i >= 2; i--) {
-		vector<int> &listToBeCompressed = adjacencyList[i];
+		vector<int> &listToBeCompressed = adjacencyList[i].first;
 		for (int j = listToBeCompressed.size() - 1; j >= 0; j--) {
 			int largerNumber = listToBeCompressed[j];
-			set<int> factorsOfLargerElement(adjacencyList[largerNumber].cbegin(), adjacencyList[largerNumber].cend());
+			set<int> factorsOfLargerElement(adjacencyList[largerNumber].first.cbegin(), adjacencyList[largerNumber].first.cend());
 
 			for (int k = listToBeCompressed.size() - 1; k >= 0; k--)
 				if (factorsOfLargerElement.count(listToBeCompressed[k]))
@@ -86,50 +58,30 @@ void GraphBuilder() {
 	// Printing the compressed graph
 	for (int i = 2; i <= TOTAL_NODES; i++) {
 		cout << "Factors of " << i << " : ";
-		for (const int &factor: adjacencyList[i]) cout << factor << " ";
+		for (const int &factor: adjacencyList[i].first) cout << factor << " ";
 		cout << endl;
 	}
-	cout << "\n\nGraph built successfully!" << endl;
+	cout << "\n\nGraph & Bloom Filter built successfully!" << endl;
 }
 
 string generateKey(const int isThisNumber, const int aFactorOfThisNumber) { return to_string(isThisNumber) + ',' + to_string(aFactorOfThisNumber); }
 
-void pruneCache(cacheLL &cacheList) {
-	if (const int cacheSize = distance(cacheList.cbegin(), cacheList.cend()); cacheSize > CACHE_SIZE_LIMIT) {
-		auto justBeforeTail = next(cacheList.cbegin(), cacheSize - 1);
-		cacheList.erase_after(justBeforeTail);	// deletes the tail
+void pruneCache() {
+	if (const int cacheSize = distance(falsePositiveCache.cbegin(), falsePositiveCache.cend()); cacheSize < CACHE_SIZE_LIMIT) {
+		auto justBeforeTail = next(falsePositiveCache.cbegin(), cacheSize - 1);
+		falsePositiveCache.erase_after(justBeforeTail);	 // deletes the tail
 	}
 }
-void cacher(const int isThisNumber, const int aFactorOfThisNumber, const bool result) {
+void cacheFalsePositive(const int isThisNumber, const int aFactorOfThisNumber) {
 	const string key = generateKey(isThisNumber, aFactorOfThisNumber);
-	int tableRow = isThisNumber / TABLE_ROW_RANGE;
-	if (result) {
-		cacheLL &cacheList = get<2>(table[tableRow]);
-		cacheList.push_front(key);
-		pruneCache(cacheList);
-	} else {
-		cacheLL &cacheList = get<3>(table[tableRow]);
-		cacheList.push_front(key);
-		pruneCache(cacheList);
-	}
+	falsePositiveCache.push_front(key);
+	pruneCache();
 }
 bool inCache(const int isThisNumber, const int aFactorOfThisNumber) {
 	const string key = generateKey(isThisNumber, aFactorOfThisNumber);
-	int tableRow = isThisNumber / TABLE_ROW_RANGE;
-	for (const string &successfulQueries: get<2>(table[tableRow]))
-		if (key == successfulQueries) return true;
-	for (const string &failedQueries: get<3>(table[tableRow]))
-		if (key == failedQueries) return true;
+	for (const string &falsePositive: falsePositiveCache)
+		if (key == falsePositive) return true;
 	return false;
-}
-bool queryCache(const int isThisNumber, const int aFactorOfThisNumber) {
-	const string key = generateKey(isThisNumber, aFactorOfThisNumber);
-	int tableRow = isThisNumber / TABLE_ROW_RANGE;
-	for (const string &successfulQueries: get<2>(table[tableRow]))
-		if (key == successfulQueries) return true;
-	for (const string &failedQueries: get<3>(table[tableRow]))
-		if (key == failedQueries) return false;
-	exit(-1);
 }
 
 bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
@@ -139,42 +91,28 @@ bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
 
 	while (not dfsStack.empty()) {
 		int currentNode = dfsStack.top();
-		if (currentNode == aFactorOfThisNumber) {
-			cacher(isThisNumber, aFactorOfThisNumber, true);
-			return true;
-		}
+		if (currentNode == aFactorOfThisNumber) return true;
 		dfsStack.pop();
 		visited[currentNode] = true;
-		for (const int &factorOfCurrentNode: adjacencyList[currentNode])
+		for (const int &factorOfCurrentNode: adjacencyList[currentNode].first)
 			if (not visited[factorOfCurrentNode])
 				dfsStack.push(factorOfCurrentNode);
 	}
 
-	cacher(isThisNumber, aFactorOfThisNumber, false);
 	return false;
 }
 
 bool searchUsingBloomFilter(const int isThisNumber, const int aFactorOfThisNumber) {
-	if (inCache(isThisNumber, aFactorOfThisNumber)) return queryCache(isThisNumber, aFactorOfThisNumber);
+	bool result = adjacencyList[isThisNumber].second.contains(aFactorOfThisNumber);
+	if (result == false) return false;	// if result==false, then result is definately false
 
-	int tableRow = isThisNumber / TABLE_ROW_RANGE;
-	bloomFilter bf = get<4>(table[tableRow]);
+	// otherwise it may be a false positive, so check the cache that maintains false positives
+	if (inCache(isThisNumber, aFactorOfThisNumber)) return false;
 
-	float p = 0;
-	if (bf[0][hashFunctions(1, aFactorOfThisNumber)]) p += 0.25;
-	if (bf[1][hashFunctions(2, aFactorOfThisNumber)]) p += 0.25;
-	if (bf[2][hashFunctions(3, aFactorOfThisNumber)]) p += 0.25;
-	if (bf[3][hashFunctions(4, aFactorOfThisNumber)]) p += 0.25;
-
-	if (p == 0) {
-		cacher(isThisNumber, aFactorOfThisNumber, false);
-		return false;
-	}
-	return searchUsingDFS(isThisNumber, aFactorOfThisNumber);
+	result = searchUsingDFS(isThisNumber, aFactorOfThisNumber);
+	if (result == false) cacheFalsePositive(isThisNumber, aFactorOfThisNumber);
+	return result;
 }
-
-void benchmarkBFS() {}
-void benchmarkBloomFilter();
 
 int main() {
 	cout << "Please wait while the graph of " << TOTAL_NODES << " nodes is being generated, this could take a while..." << endl;
@@ -182,8 +120,6 @@ int main() {
 
 	cout << "[1] Query using DFS" << endl;
 	cout << "[2] Query using DFS+Caching+BloomFilter" << endl;
-	cout << "[3] Profile [1]" << endl;
-	cout << "[4] Profile [2]" << endl;
 	cout << "[0] Exit" << endl;
 
 	int choice;
@@ -192,7 +128,7 @@ int main() {
 		cin >> choice;
 		if (choice == 0) return 0;
 
-		cout << "Check if a number X is a factor of Y" << endl;
+		cout << "Check if a X is a factor of Y" << endl;
 		int x, y;
 		cout << "Enter X: ";
 		cin >> x;
@@ -205,10 +141,6 @@ int main() {
 				break;
 			case 2:
 				cout << x << " is " << (searchUsingBloomFilter(x, y) ? "not a " : "") << "factor of " << y << endl;
-				break;
-			case 3:
-				break;
-			case 4:
 				break;
 		}
 	}
