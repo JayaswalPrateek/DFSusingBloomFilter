@@ -8,7 +8,7 @@
 #include "bloom/bloom_filter.hpp"
 using namespace std;
 
-const int TOTAL_NODES = 10000;
+const int TOTAL_NODES = 200000;
 const int CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES = 1;  // cache wont have nodes more than 1% if TOTAL_NODES
 const int CACHE_SIZE_LIMIT = (CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;
 
@@ -59,9 +59,8 @@ void GraphBuilder() {
 	for (int i = 2; i <= TOTAL_NODES; i++) {
 		cout << "Factors of " << i << " : ";
 		for (const int &factor: adjacencyList[i].first) cout << factor << " ";
-		cout << endl;
+		cout << "\n";
 	}
-	cout << "\n\nGraph & Bloom Filter built successfully!" << endl;
 }
 
 string generateKey(const int isThisNumber, const int aFactorOfThisNumber) { return to_string(isThisNumber) + ',' + to_string(aFactorOfThisNumber); }
@@ -114,12 +113,32 @@ bool searchUsingBloomFilter(const int isThisNumber, const int aFactorOfThisNumbe
 	return result;
 }
 
+#include <chrono>
+void compareExecTime() {
+	using namespace std::chrono;
+
+	auto start = high_resolution_clock::now();
+	searchUsingDFS(2, TOTAL_NODES - 2);
+	auto stop = high_resolution_clock::now();
+	auto duration = duration_cast<microseconds>(stop - start);
+	cout << "DFS took: " << duration.count() << " Microseconds" << endl;
+
+	start = high_resolution_clock::now();
+	searchUsingBloomFilter(2, TOTAL_NODES - 2);
+	stop = high_resolution_clock::now();
+	duration = duration_cast<microseconds>(stop - start);
+	cout << "DFS + Bloom Filter with False+ve Caching took: " << duration.count() << " Microseconds" << endl;
+}
+
 int main() {
+	ios_base::sync_with_stdio(false);
+
 	cout << "Please wait while the graph of " << TOTAL_NODES << " nodes is being generated, this could take a while..." << endl;
 	GraphBuilder();
 
-	cout << "[1] Query using DFS" << endl;
+	cout << "\n\n[1] Query using DFS" << endl;
 	cout << "[2] Query using DFS+Caching+BloomFilter" << endl;
+	cout << "[3] Compare Execution Time of [1] and [2]" << endl;
 	cout << "[0] Exit" << endl;
 
 	int choice;
@@ -127,6 +146,14 @@ int main() {
 		cout << "\n-> ";
 		cin >> choice;
 		if (choice == 0) return 0;
+		if (choice != 1 and choice != 2 and choice != 3) {
+			cout << "Invalid Choice, Try Again!" << endl;
+			continue;
+		}
+		if (choice == 3) {
+			compareExecTime();
+			continue;
+		}
 
 		cout << "Check if a X is a factor of Y" << endl;
 		int x, y;
@@ -134,6 +161,10 @@ int main() {
 		cin >> x;
 		cout << "Enter Y: ";
 		cin >> y;
+		if (x > TOTAL_NODES or y > TOTAL_NODES) {
+			cout << "Input Out Of Range, Try Again!" << endl;
+			continue;
+		}
 
 		switch (choice) {
 			case 1:
