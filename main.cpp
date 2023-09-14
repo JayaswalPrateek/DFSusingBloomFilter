@@ -1,41 +1,37 @@
-// https://hur.st/bloomfilter/?n=100&p=&m=400&k=4
-#include <forward_list>
+#include <forward_list>	 // singly linked list for caching false +ve results from bloom filter
 #include <iostream>
-#include <set>
-#include <stack>
-#include <vector>
+#include <set>	  // used to check memberships while compressing graph
+#include <stack>  // used for DFS
 
-#include "bloom/bloom_filter.hpp"
+#include "bloom_filter.hpp"
 using namespace std;
 
-const int TOTAL_NODES = 200000;
-const int CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES = 1;  // cache wont have nodes more than 1% if TOTAL_NODES
-const int CACHE_SIZE_LIMIT = (CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;
+const int TOTAL_NODES = 200000;															 // total nodes in the entire graph
+const int CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES = 1;										 // cache wont have more than 1% of TOTAL_NODES
+const int CACHE_LEN_LIMIT = (CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;	 // hence the false +ve probability is also 1%
 
-vector<pair<vector<int>, bloom_filter>> adjacencyList;
-forward_list<string> falsePositiveCache;
+vector<pair<vector<int>, bloom_filter>> adjacencyList;	// used to represent the graph
+forward_list<string> falsePositiveCache;				// caches the results that turned out to be false +ve
 
 bloom_filter createBloomFilter(const int number) {
 	bloom_parameters parameters;
-	parameters.projected_element_count = number;
-	parameters.false_positive_probability = (float)CACHE_SIZE_LIMIT_AS_PC_OF_TOTAL_NODES / 100;	 // 1 in 100
+	parameters.projected_element_count = number;  // max number of elements the bloom filter can contain
+	parameters.false_positive_probability = (float)CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100;
 	parameters.compute_optimal_parameters();
 	bloom_filter bf(parameters);
 	return bf;
 }
 void GraphBuilder() {
-	adjacencyList.resize(TOTAL_NODES + 1);
+	adjacencyList.resize(TOTAL_NODES + 1);	// to avoid Amortized O(1) insertions
 
-	// Building the Adj. List for uncompressed graph
+	// Building the adjacency list for uncompressed graph
 	for (int i = 2; i <= TOTAL_NODES; i++) {
 		adjacencyList[i].second = bloom_filter();
 		for (int j = 2; j < i; j++)
-			if (i % j == 0) {
-				adjacencyList[i].first.push_back(j);
-			}
+			if (i % j == 0) adjacencyList[i].first.push_back(j);
 	}
 
-	// filling bloom filters using uncompressed graph
+	// setting up bloom filters from uncompressed graph
 	for (int i = 2; i <= TOTAL_NODES; i++) {
 		const vector<int> &factors = adjacencyList[i].first;
 		adjacencyList[i].second = createBloomFilter(factors.size());
@@ -47,11 +43,11 @@ void GraphBuilder() {
 		vector<int> &listToBeCompressed = adjacencyList[i].first;
 		for (int j = listToBeCompressed.size() - 1; j >= 0; j--) {
 			int largerNumber = listToBeCompressed[j];
-			set<int> factorsOfLargerElement(adjacencyList[largerNumber].first.cbegin(), adjacencyList[largerNumber].first.cend());
+			set<int> factorsOfTheLargerNumber(adjacencyList[largerNumber].first.cbegin(), adjacencyList[largerNumber].first.cend());
 
 			for (int k = listToBeCompressed.size() - 1; k >= 0; k--)
-				if (factorsOfLargerElement.count(listToBeCompressed[k]))
-					listToBeCompressed.erase(listToBeCompressed.cbegin() + k);	// Removed the common factors
+				if (factorsOfTheLargerNumber.count(listToBeCompressed[k]))
+					listToBeCompressed.erase(listToBeCompressed.cbegin() + k);	// Removes the common factors
 		}
 	}
 
@@ -66,20 +62,19 @@ void GraphBuilder() {
 string generateKey(const int isThisNumber, const int aFactorOfThisNumber) { return to_string(isThisNumber) + ',' + to_string(aFactorOfThisNumber); }
 
 void pruneCache() {
-	if (const int cacheSize = distance(falsePositiveCache.cbegin(), falsePositiveCache.cend()); cacheSize < CACHE_SIZE_LIMIT) {
-		auto justBeforeTail = next(falsePositiveCache.cbegin(), cacheSize - 1);
+	const int cacheLen = distance(falsePositiveCache.cbegin(), falsePositiveCache.cend());
+	if (cacheLen < CACHE_LEN_LIMIT) {
+		auto justBeforeTail = next(falsePositiveCache.cbegin(), cacheLen - 1);
 		falsePositiveCache.erase_after(justBeforeTail);	 // deletes the tail
 	}
 }
-void cacheFalsePositive(const int isThisNumber, const int aFactorOfThisNumber) {
-	const string key = generateKey(isThisNumber, aFactorOfThisNumber);
-	falsePositiveCache.push_front(key);
+void cacheFalsePositiveResult(const int isThisNumber, const int aFactorOfThisNumber) {
+	falsePositiveCache.push_front(generateKey(isThisNumber, aFactorOfThisNumber));
 	pruneCache();
 }
 bool inCache(const int isThisNumber, const int aFactorOfThisNumber) {
-	const string key = generateKey(isThisNumber, aFactorOfThisNumber);
 	for (const string &falsePositive: falsePositiveCache)
-		if (key == falsePositive) return true;
+		if (generateKey(isThisNumber, aFactorOfThisNumber) == falsePositive) return true;
 	return false;
 }
 
@@ -89,7 +84,7 @@ bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
 	vector<bool> visited(TOTAL_NODES + 1, false);
 
 	while (not dfsStack.empty()) {
-		int currentNode = dfsStack.top();
+		const int currentNode = dfsStack.top();
 		if (currentNode == aFactorOfThisNumber) return true;
 		dfsStack.pop();
 		visited[currentNode] = true;
@@ -105,11 +100,11 @@ bool searchUsingBloomFilter(const int isThisNumber, const int aFactorOfThisNumbe
 	bool result = adjacencyList[isThisNumber].second.contains(aFactorOfThisNumber);
 	if (result == false) return false;	// if result==false, then result is definately false
 
-	// otherwise it may be a false positive, so check the cache that maintains false positives
+	// otherwise it may be a false positive, so check the cache that maintains previous false positive results
 	if (inCache(isThisNumber, aFactorOfThisNumber)) return false;
 
 	result = searchUsingDFS(isThisNumber, aFactorOfThisNumber);
-	if (result == false) cacheFalsePositive(isThisNumber, aFactorOfThisNumber);
+	if (result == false) cacheFalsePositiveResult(isThisNumber, aFactorOfThisNumber);
 	return result;
 }
 
@@ -131,9 +126,9 @@ void compareExecTime() {
 }
 
 int main() {
-	ios_base::sync_with_stdio(false);
+	ios_base::sync_with_stdio(false);  // improves io in c++
 
-	cout << "Please wait while the graph of " << TOTAL_NODES << " nodes is being generated, this could take a while..." << endl;
+	cout << "Please wait while the graph of " << TOTAL_NODES << " nodes is being generated, this might take a while..." << endl;
 	GraphBuilder();
 
 	cout << "\n\n[1] Query using DFS" << endl;
@@ -155,7 +150,7 @@ int main() {
 			continue;
 		}
 
-		cout << "Check if a X is a factor of Y" << endl;
+		cout << "Check if X is a factor of Y" << endl;
 		int x, y;
 		cout << "Enter X: ";
 		cin >> x;
@@ -172,7 +167,6 @@ int main() {
 				break;
 			case 2:
 				cout << x << " is " << (searchUsingBloomFilter(x, y) ? "not a " : "") << "factor of " << y << endl;
-				break;
 		}
 	}
 
