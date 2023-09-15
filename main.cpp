@@ -6,7 +6,8 @@
 #include "bloom_filter.hpp"
 using namespace std;
 
-const int TOTAL_NODES = 100000;															 // total nodes in the entire graph
+const bool PRINT_GRAPH = true;
+const int TOTAL_NODES = 10000;															 // total nodes in the entire graph
 const int CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES = 1;										 // cache wont have more than 1% of TOTAL_NODES
 const int CACHE_LEN_LIMIT = (CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;	 // hence the false +ve probability is also 1%
 
@@ -50,6 +51,9 @@ void GraphBuilder() {
 					listToBeCompressed.erase(listToBeCompressed.cbegin() + k);	// Removes the common factors
 		}
 	}
+
+	cout << "GRAPH HAS BEEN BUILT!" << endl;
+	if (not PRINT_GRAPH) return;
 
 	// Printing the compressed graph
 	for (int i = 2; i <= TOTAL_NODES; i++) {
