@@ -26,7 +26,7 @@ void GraphBuilder() {
 
 	// Building the adjacency list for uncompressed graph
 	for (int i = 2; i <= TOTAL_NODES; i++) {
-		adjacencyList[i].second = bloom_filter();
+		adjacencyList[i].second = bloom_filter();  // creating an empty bloom filter as the length of vectors in the adjacency list is unknown
 		for (int j = 2; j < i; j++)
 			if (i % j == 0) adjacencyList[i].first.push_back(j);
 	}
@@ -74,7 +74,13 @@ void cacheFalsePositiveResult(const int isThisNumber, const int aFactorOfThisNum
 }
 bool inCache(const int isThisNumber, const int aFactorOfThisNumber) {
 	for (const string &falsePositive: falsePositiveCache)
-		if (generateKey(isThisNumber, aFactorOfThisNumber) == falsePositive) return true;
+		if (generateKey(isThisNumber, aFactorOfThisNumber) == falsePositive) {
+			// if query in cache, move it to front so that response is faster next time
+			// this way least queried items(one hit wonders) are implicitly moved towards tailed and eventually gets pruned
+			falsePositiveCache.remove(falsePositive);
+			falsePositiveCache.push_front(falsePositive);
+			return true;
+		}
 	return false;
 }
 
