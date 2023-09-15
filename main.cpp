@@ -6,7 +6,7 @@
 #include "bloom_filter.hpp"
 using namespace std;
 
-const int TOTAL_NODES = 200000;															 // total nodes in the entire graph
+const int TOTAL_NODES = 100000;															 // total nodes in the entire graph
 const int CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES = 1;										 // cache wont have more than 1% of TOTAL_NODES
 const int CACHE_LEN_LIMIT = (CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;	 // hence the false +ve probability is also 1%
 
@@ -86,17 +86,13 @@ bool inCache(const int isThisNumber, const int aFactorOfThisNumber) {
 
 bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
 	stack<int> dfsStack;
-	dfsStack.push(isThisNumber);
-	vector<bool> visited(TOTAL_NODES + 1, false);
+	dfsStack.push(aFactorOfThisNumber);
 
 	while (not dfsStack.empty()) {
 		const int currentNode = dfsStack.top();
-		if (currentNode == aFactorOfThisNumber) return true;
+		if (currentNode == isThisNumber) return true;
 		dfsStack.pop();
-		visited[currentNode] = true;
-		for (const int &factorOfCurrentNode: adjacencyList[currentNode].first)
-			if (not visited[factorOfCurrentNode])
-				dfsStack.push(factorOfCurrentNode);
+		for (const int &factorOfCurrentNode: adjacencyList[currentNode].first) dfsStack.push(factorOfCurrentNode);
 	}
 
 	return false;
@@ -169,10 +165,10 @@ int main() {
 
 		switch (choice) {
 			case 1:
-				cout << x << " is " << (searchUsingDFS(x, y) ? "not a " : "") << "factor of " << y << endl;
+				cout << x << " is " << (searchUsingDFS(x, y) ? "" : "not a ") << "factor of " << y << endl;
 				break;
 			case 2:
-				cout << x << " is " << (searchUsingBloomFilter(x, y) ? "not a " : "") << "factor of " << y << endl;
+				cout << x << " is " << (searchUsingBloomFilter(x, y) ? "" : "not a ") << "factor of " << y << endl;
 		}
 	}
 
