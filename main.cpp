@@ -103,7 +103,7 @@ bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
 }
 
 bool searchUsingBloomFilter(const int isThisNumber, const int aFactorOfThisNumber) {
-	bool result = adjacencyList[isThisNumber].second.contains(aFactorOfThisNumber);
+	bool result = adjacencyList[aFactorOfThisNumber].second.contains(isThisNumber);
 	if (result == false) return false;	// if result==false, then result is definately false
 
 	// otherwise it may be a false positive, so check the cache that maintains previous false positive results
