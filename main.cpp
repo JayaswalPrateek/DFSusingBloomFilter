@@ -112,7 +112,7 @@ bool searchUsingBloomFilter(const int isThisNumber, const int aFactorOfThisNumbe
 
 	result = searchUsingDFS(isThisNumber, aFactorOfThisNumber);
 	if (result == false) cacheFalsePositiveResult(isThisNumber, aFactorOfThisNumber);
-	return true;
+	return result;
 }
 
 #include <chrono>
