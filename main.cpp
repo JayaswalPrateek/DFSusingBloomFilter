@@ -14,9 +14,9 @@ const int CACHE_LEN_LIMIT = (CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL
 vector<pair<vector<int>, bloom_filter>> adjacencyList;	// used to represent the graph
 forward_list<string> falsePositiveCache;				// caches the results that turned out to be false +ve
 
-bloom_filter createBloomFilter(const int number) {
+bloom_filter createBloomFilter(const int size) {
 	bloom_parameters parameters;
-	parameters.projected_element_count = number;  // max number of elements the bloom filter can contain
+	parameters.projected_element_count = size;	// max number of elements the bloom filter can contain
 	parameters.false_positive_probability = (float)CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100;
 	parameters.compute_optimal_parameters();
 	bloom_filter bf(parameters);
@@ -27,22 +27,23 @@ void GraphBuilder() {
 
 	// Building the adjacency list for uncompressed graph
 	for (int i = 2; i <= TOTAL_NODES; i++) {
-		adjacencyList[i].second = bloom_filter();  // creating an empty bloom filter as the length of vectors in the adjacency list is unknown
+		adjacencyList[i].second = bloom_filter();  // creating an empty bloom filter as the number of factors to be inserted in the bloom filter is unknown
 		for (int j = 2; j < i; j++)
-			if (i % j == 0) adjacencyList[i].first.push_back(j);
+			if (i % j == 0) adjacencyList[i].first.push_back(j);  // append factor to adjacency list
 	}
 
-	// setting up bloom filters from uncompressed graph
+	// factors for all elements have been found, so we know exactly how many factors does a number have
+	// setting up bloom filters from uncompressed graph with size=number of factors of that number
 	for (int i = 2; i <= TOTAL_NODES; i++) {
-		const vector<int> &factors = adjacencyList[i].first;
-		adjacencyList[i].second = createBloomFilter(factors.size());
-		for (const int &factor: factors) adjacencyList[i].second.insert(factor);
+		const vector<int> &factors = adjacencyList[i].first;					  // retreive all factors of that number in an array
+		adjacencyList[i].second = createBloomFilter(factors.size());			  // create bloom filter that can hold all these numbers
+		for (const int &factor: factors) adjacencyList[i].second.insert(factor);  // insert all factors for i inside the bloom filter
 	}
 
 	// Compressing the graph inplace
 	for (int i = TOTAL_NODES; i >= 2; i--) {
-		vector<int> &listToBeCompressed = adjacencyList[i].first;
-		for (int j = listToBeCompressed.size() - 1; j >= 0; j--) {
+		vector<int> &listToBeCompressed = adjacencyList[i].first;	// compress adjacency list row by row, from bottom up
+		for (int j = listToBeCompressed.size() - 1; j >= 0; j--) {	// read the row(sorted in Ascending Order) backwards
 			int largerNumber = listToBeCompressed[j];
 			set<int> factorsOfTheLargerNumber(adjacencyList[largerNumber].first.cbegin(), adjacencyList[largerNumber].first.cend());
 
@@ -68,8 +69,8 @@ string generateKey(const int isThisNumber, const int aFactorOfThisNumber) { retu
 void pruneCache() {
 	const int cacheLen = distance(falsePositiveCache.cbegin(), falsePositiveCache.cend());
 	if (cacheLen < CACHE_LEN_LIMIT) {
-		auto justBeforeTail = next(falsePositiveCache.cbegin(), cacheLen - 1);
-		falsePositiveCache.erase_after(justBeforeTail);	 // deletes the tail
+		auto pruningPtr = next(falsePositiveCache.cbegin(), cacheLen - 1);
+		falsePositiveCache.erase_after(pruningPtr);	 // deletes excess nodes after CACHE_LEN_LIMIT nodes
 	}
 }
 void cacheFalsePositiveResult(const int isThisNumber, const int aFactorOfThisNumber) {
@@ -77,12 +78,12 @@ void cacheFalsePositiveResult(const int isThisNumber, const int aFactorOfThisNum
 	pruneCache();
 }
 bool inCache(const int isThisNumber, const int aFactorOfThisNumber) {
-	for (const string &falsePositive: falsePositiveCache)
-		if (generateKey(isThisNumber, aFactorOfThisNumber) == falsePositive) {
-			// if query in cache, move it to front so that response is faster next time
+	for (const string &knownFalsePositive: falsePositiveCache)
+		if (const string key = generateKey(isThisNumber, aFactorOfThisNumber); key == knownFalsePositive) {
+			// if key in cache, move it to front so that response is faster next time
 			// this way least queried items(one hit wonders) are implicitly moved towards tailed and eventually gets pruned
-			falsePositiveCache.remove(falsePositive);
-			falsePositiveCache.push_front(falsePositive);
+			falsePositiveCache.remove(key);
+			falsePositiveCache.push_front(key);
 			return true;
 		}
 	return false;
@@ -106,12 +107,12 @@ bool searchUsingBloomFilter(const int isThisNumber, const int aFactorOfThisNumbe
 	bool result = adjacencyList[aFactorOfThisNumber].second.contains(isThisNumber);
 	if (result == false) return false;	// if result==false, then result is definately false
 
-	// otherwise it may be a false positive, so check the cache that maintains previous false positive results
+	// else it is a probable true and could be a  false positive, so check the cache that maintains previous false positive results
 	if (inCache(isThisNumber, aFactorOfThisNumber)) return false;
 
 	result = searchUsingDFS(isThisNumber, aFactorOfThisNumber);
 	if (result == false) cacheFalsePositiveResult(isThisNumber, aFactorOfThisNumber);
-	return result;
+	return true;
 }
 
 #include <chrono>
