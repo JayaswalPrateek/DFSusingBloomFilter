@@ -7,9 +7,9 @@
 using namespace std;
 
 const bool PRINT_GRAPH = true;
-const int TOTAL_NODES = 10000;															 // total nodes in the entire graph
-const int CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES = 1;										 // cache wont have more than 1% of TOTAL_NODES
-const int CACHE_LEN_LIMIT = (CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100) * TOTAL_NODES;	 // hence the false +ve probability is also 1%
+const int TOTAL_NODES = 25;														// total nodes in the entire graph
+const int FALSE_POSITIVITY_RATE_IN_PC = 1;										// cache wont have more than 1% of TOTAL_NODES
+const int CACHE_LEN_LIMIT = (FALSE_POSITIVITY_RATE_IN_PC / 100) * TOTAL_NODES;	// hence the false +ve probability is also 1%
 
 vector<pair<vector<int>, bloom_filter>> adjacencyList;	// used to represent the graph
 forward_list<string> falsePositiveCache;				// caches the results that turned out to be false +ve
@@ -17,7 +17,7 @@ forward_list<string> falsePositiveCache;				// caches the results that turned ou
 bloom_filter createBloomFilter(const int size) {
 	bloom_parameters parameters;
 	parameters.projected_element_count = size;	// max number of elements the bloom filter can contain
-	parameters.false_positive_probability = (float)CACHE_LEN_LIMIT_AS_PC_OF_TOTAL_NODES / 100;
+	parameters.false_positive_probability = (float)FALSE_POSITIVITY_RATE_IN_PC / 100;
 	parameters.compute_optimal_parameters();
 	bloom_filter bf(parameters);
 	return bf;
@@ -38,6 +38,8 @@ void GraphBuilder() {
 		const vector<int> &factors = adjacencyList[i].first;					  // retreive all factors of that number in an array
 		adjacencyList[i].second = createBloomFilter(factors.size());			  // create bloom filter that can hold all these numbers
 		for (const int &factor: factors) adjacencyList[i].second.insert(factor);  // insert all factors for i inside the bloom filter
+		adjacencyList[i].second.insert(1);										  // inserting 1
+		adjacencyList[i].second.insert(i);										  // inserting the number itself
 	}
 
 	// Compressing the graph inplace
@@ -67,8 +69,8 @@ void GraphBuilder() {
 string generateKey(const int isThisNumber, const int aFactorOfThisNumber) { return to_string(isThisNumber) + ',' + to_string(aFactorOfThisNumber); }
 
 void pruneCache() {
-	const int cacheLen = distance(falsePositiveCache.cbegin(), falsePositiveCache.cend());
-	if (cacheLen < CACHE_LEN_LIMIT) {
+	const int cacheLen = abs(distance(falsePositiveCache.cbegin(), falsePositiveCache.cend()));
+	if (cacheLen > CACHE_LEN_LIMIT) {
 		auto pruningPtr = next(falsePositiveCache.cbegin(), cacheLen - 1);
 		falsePositiveCache.erase_after(pruningPtr);	 // deletes excess nodes after CACHE_LEN_LIMIT nodes
 	}
@@ -90,6 +92,7 @@ bool inCache(const int isThisNumber, const int aFactorOfThisNumber) {
 }
 
 bool searchUsingDFS(const int isThisNumber, const int aFactorOfThisNumber) {
+	if (isThisNumber == 1) return true;
 	stack<int> dfsStack;
 	dfsStack.push(aFactorOfThisNumber);
 
