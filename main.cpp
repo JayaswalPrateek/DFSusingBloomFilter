@@ -7,7 +7,7 @@
 using namespace std;
 
 const bool PRINT_GRAPH = true;
-const int TOTAL_NODES = 25;														// total nodes in the entire graph
+const int TOTAL_NODES = 20001;													// total nodes in the entire graph
 const int FALSE_POSITIVITY_RATE_IN_PC = 1;										// cache wont have more than 1% of TOTAL_NODES
 const int CACHE_LEN_LIMIT = (FALSE_POSITIVITY_RATE_IN_PC / 100) * TOTAL_NODES;	// hence the false +ve probability is also 1%
 
@@ -36,7 +36,7 @@ void GraphBuilder() {
 	// setting up bloom filters from uncompressed graph with size=number of factors of that number
 	for (int i = 2; i <= TOTAL_NODES; i++) {
 		const vector<int> &factors = adjacencyList[i].first;					  // retreive all factors of that number in an array
-		adjacencyList[i].second = createBloomFilter(factors.size());			  // create bloom filter that can hold all these numbers
+		adjacencyList[i].second = createBloomFilter(factors.size() + 2);		  // create bloom filter that can hold all these numbers, 1 and the number itself
 		for (const int &factor: factors) adjacencyList[i].second.insert(factor);  // insert all factors for i inside the bloom filter
 		adjacencyList[i].second.insert(1);										  // inserting 1
 		adjacencyList[i].second.insert(i);										  // inserting the number itself
