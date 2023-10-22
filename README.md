@@ -16,10 +16,13 @@ The drawbacks of these approaches become clearer as the cardinality of the set g
 
 ## Representing a Set as a Linear Array
 
-- The naivest and least optimal way to represent a set in a computer's memory is by using an array because in the worst case we cannot conclude if an element belongs to a set till we reach and read the last element of the array.
-- So the time taken by the Set Membership Test on a set represented as an array depends linearly on the cardinality of the set(N), leading to a O(N) Time and Space Complexity.
-  - Insertion is an O(N) Operation too as we need to perform a set membership test prior to insertion to avoid inserting duplicate members in the set!
-- At the end we can either be 0% or 100% sure if the element exists in the set.
+The naivest and least optimal way to represent a set in a computer's memory is by using an array because in the worst case we cannot conclude if an element belongs to a set till we reach and read the last element of the array.
+
+So the time taken by the Set Membership Test on a set represented as an array depends linearly on the cardinality of the set(N), leading to a O(N) Time and Space Complexity.
+
+- Insertion is an O(N) Operation too as we need to perform a set membership test prior to insertion to avoid inserting duplicate members in the set!
+
+At the end we can either be 0% or 100% sure if the element exists in the set.
 
 ## Representing a Set as a Balanced Binary Tree
 
@@ -29,13 +32,14 @@ Insertion is an O(log n) operation too as maintaining the balanced binary tree i
 
 At the end we can either be 0% or 100% sure if the element exists in the set.
 
-\*Inductive Proof: _[https://www\.cs\.cornell\.edu/courses/cs211/2006sp/Lectures/L06\-Induction/binary_search\.html](https://www.cs.cornell.edu/courses/cs211/2006sp/Lectures/L06-Induction/binary_search.html)_
+Although O(log n) is relatively small even for large numbers, the devil lies in the inefficiencies of storing Trees in a computer's memory which is exacerbated when the entire set needs to be loaded into the RAM.
+Assuming that a the node of the balanced binary tree contains left and right pointers on a 64-Bit CPU Architecture, we can say that the smallest and the largest possible memory address will be 64 bit(8 bytes) long. So to store a 4 byte integer, we will have to spare 8+8=16 bytes for pointers to child nodes.
 
-- Although O(log n) is relatively small even for large numbers, the devil lies in the inefficiencies of storing Trees in a computer's memory which is exacerbated when the entire set needs to be loaded into the RAM.
-- Assuming that a the node of the balanced binary tree contains left and right pointers on a 64-Bit CPU Architecture, we can say that the smallest and the largest possible memory address will be 64 bit(8 bytes) long. So to store a 4 byte integer, we will have to spare 8+8=16 bytes for pointers to child nodes.
-  - For a large set, the metadata will be 4 times the size of the data itself, which is unacceptable.
-  - So we are trading space compactness to improve the Time Complexity from O(N) to O(log N).
-  - Although we can represent the tree in an array, it will implicitly set an upper bound to the set's cardinality, hence leading to Amortized O(log N) Time Complexity.\*
+- For a large set, the metadata will be 4 times the size of the data itself, which is unacceptable.
+- So we are trading space compactness to improve the Time Complexity from O(N) to O(log N).
+- Although we can represent the tree in an array, it will implicitly set an upper bound to the set's cardinality, hence leading to Amortized O(log N) Time Complexity.\*
+
+\*Inductive Proof: _[https://www\.cs\.cornell\.edu/courses/cs211/2006sp/Lectures/L06\-Induction/binary_search\.html](https://www.cs.cornell.edu/courses/cs211/2006sp/Lectures/L06-Induction/binary_search.html)_
 
 \*As once in a while an insertion will be O(N) instead of O(log N) due to overhead of copying all existing elements into the larger array.
 
@@ -153,12 +157,16 @@ _[https://www\.di\-mgt\.com\.au/bloom\-calculator\.html](https://www.di-mgt.com.
 
 ## Designing a graph for demonstration
 
-- **We initially build a graph that is represented as an Adjacency List where each node stores a number and points directly to all its factors.**
-  - **This simple yet powerful model allows to to easily scale up the cardinality.**
-- **Then we create a bloom filter for every row in the adjacency list by inserting all factors of the node in the bloom filter for the corresponding node.**
-- **Then we compress the adjacency list by removing redundancies.**
-  - **Example earlier 8 would point to both 4 and 2 while 4 would also point to 2.**
-  - **After compressing, 8 will only point to 4 while 4 will point to 2.**
+**We initially build a graph that is represented as an Adjacency List where each node stores a number and points directly to all its factors.**
+
+- **This simple yet powerful model allows to to easily scale up the cardinality.**
+
+**Then we create a bloom filter for every row in the adjacency list by inserting all factors of the node in the bloom filter for the corresponding node.**
+
+**Then we compress the adjacency list by removing redundancies.**
+
+- **Example earlier 8 would point to both 4 and 2 while 4 would also point to 2.**
+- **After compressing, 8 will only point to 4 while 4 will point to 2.**
 
 ## Checking if 3 is a factor of 24 using DFS
 
